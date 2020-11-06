@@ -4,12 +4,14 @@
             [compojure.route :as route]
             [clojure.java.io :as io]
             [ring.middleware.stacktrace :as trace]
+            [ring.middleware.params :as p]
             [ring.middleware.session :as session]
             [ring.middleware.session.cookie :as cookie]
             [ring.adapter.jetty :as jetty]
             [ring.middleware.basic-authentication :as basic]
             [cemerick.drawbridge :as drawbridge]
-            [environ.core :refer [env]]))
+            [environ.core :refer [env]]
+            [crisco.data :as data]))
 
 (defn- authenticated? [user pass]
   ;; TODO: heroku config:add REPL_USER=[...] REPL_PASSWORD=[...]
@@ -20,15 +22,33 @@
       (session/wrap-session)
       (basic/wrap-basic-authentication authenticated?)))
 
-(defroutes app
+(defroutes routes
   (ANY "/repl" {:as req}
-       (drawbridge req))
+    (drawbridge req))
+
   (GET "/" []
-       {:status 200
-        :headers {"Content-Type" "text/plain"}
-        :body (pr-str ["Hello" :from 'Heroku])})
+    {:status 200
+     :headers {"Content-Type" "text/html"}
+     :body (-> "index.html"
+               io/resource
+               slurp)})
+
+  (GET "/:slug" [slug]
+    {:status 301
+     :headers {"Location" (data/request-redirect! slug)}})
+
+  (POST "/shorten/:slug" [slug target]
+    (if (data/store-slug! slug target)
+      {:status 200}
+      {:status 409}))
+
   (ANY "*" []
-       (route/not-found (slurp (io/resource "404.html")))))
+    (route/not-found (-> "404.html"
+                         io/resource
+                         slurp))))
+
+(def app (-> routes
+             p/wrap-params))
 
 (defn wrap-error-page [handler]
   (fn [req]
@@ -52,5 +72,7 @@
     (jetty/run-jetty (wrap-app #'app) {:port port :join? false})))
 
 ;; For interactive development:
-;; (.stop server)
-;; (def server (-main))
+(defonce server (-main))
+
+(.stop server)
+(.start server)

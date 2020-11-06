@@ -1,0 +1,17 @@
+### home
+GET http://localhost:5000/
+###
+
+### google
+GET http://localhost:5000/gg
+####
+
+### clojure
+GET http://localhost:5000/clj
+####
+
+###
+POST http://localhost:5000/shorten/clj
+Content-Type: application/x-www-form-urlencoded
+target=https://clojure.org
+###
